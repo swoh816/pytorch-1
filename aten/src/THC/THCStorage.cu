@@ -11,3 +11,9 @@
 
 #include <THC/generic/THCStorage.cu>
 #include <THC/THCGenerateAllTypes.h>
+
+#include <THC/generic/THCStorage.cu>
+#include <THC/THCGenerateBoolType.h>
+
+#include <THC/generic/THCStorage.cu>
+#include <THC/THCGenerateBFloat16Type.h>

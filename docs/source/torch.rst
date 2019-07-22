@@ -6,6 +6,7 @@ Tensors
 ----------------------------------
 .. autofunction:: is_tensor
 .. autofunction:: is_storage
+.. autofunction:: is_floating_point
 .. autofunction:: set_default_dtype
 .. autofunction:: get_default_dtype
 .. autofunction:: set_default_tensor_type
@@ -70,15 +71,28 @@ Indexing, Slicing, Joining, Mutating Ops
 .. autofunction:: unsqueeze
 .. autofunction:: where
 
+.. _generators:
+
+Generators
+----------------------------------
+.. autoclass:: torch._C.Generator
+   :members:
+
 .. _random-sampling:
 
 Random sampling
 ----------------------------------
+.. autofunction:: seed
 .. autofunction:: manual_seed
 .. autofunction:: initial_seed
 .. autofunction:: get_rng_state
 .. autofunction:: set_rng_state
-.. autodata:: default_generator
+.. autoattribute:: torch.default_generator
+   :annotation:  Returns the default CPU torch.Generator
+.. autoattribute:: torch.cuda.default_generators
+   :annotation:  If cuda is available, returns a tuple of default CUDA torch.Generator-s.
+                 The number of CUDA torch.Generator-s returned is equal to the number of
+                 GPUs available in the system.
 .. autofunction:: bernoulli
 .. autofunction:: multinomial
 .. autofunction:: normal
@@ -106,6 +120,13 @@ There are a few more in-place random sampling functions defined on Tensors as we
 - :func:`torch.Tensor.random_` - numbers sampled from the discrete uniform distribution
 - :func:`torch.Tensor.uniform_` - numbers sampled from the continuous uniform distribution
 
+Quasi-random sampling
+~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: torch.quasirandom.SobolEngine
+    :members:
+    :exclude-members: MAXBIT, MAXDIM
+    :undoc-members:
 
 Serialization
 ----------------------------------
@@ -117,13 +138,17 @@ Parallelism
 ----------------------------------
 .. autofunction:: get_num_threads
 .. autofunction:: set_num_threads
+.. autofunction:: get_num_interop_threads
+.. autofunction:: set_num_interop_threads
 
 Locally disabling gradient computation
 --------------------------------------
 The context managers :func:`torch.no_grad`, :func:`torch.enable_grad`, and
 :func:`torch.set_grad_enabled` are helpful for locally disabling and enabling
 gradient computation. See :ref:`locally-disable-grad` for more details on
-their usage.
+their usage.  These context managers are thread local, so they won't
+work if you send work to another thread using the :module:`threading`
+module, etc.
 
 Examples::
 
@@ -164,6 +189,7 @@ Pointwise Ops
 .. autofunction:: asin
 .. autofunction:: atan
 .. autofunction:: atan2
+.. autofunction:: bitwise_not
 .. autofunction:: ceil
 .. autofunction:: clamp
 .. autofunction:: cos
@@ -215,9 +241,12 @@ Reduction Ops
 .. autofunction:: norm
 .. autofunction:: prod
 .. autofunction:: std
+.. autofunction:: std_mean
 .. autofunction:: sum
 .. autofunction:: unique
+.. autofunction:: unique_consecutive
 .. autofunction:: var
+.. autofunction:: var_mean
 
 
 Comparison Ops
@@ -258,6 +287,8 @@ Other Operations
 ~~~~~~~~~~~~~~~~~~~~~~
 .. autofunction:: bincount
 .. autofunction:: broadcast_tensors
+.. autofunction:: cartesian_prod
+.. autofunction:: combinations
 .. autofunction:: cross
 .. autofunction:: diag
 .. autofunction:: diag_embed
@@ -266,14 +297,18 @@ Other Operations
 .. autofunction:: einsum
 .. autofunction:: flatten
 .. autofunction:: flip
+.. autofunction:: rot90
 .. autofunction:: histc
 .. autofunction:: meshgrid
 .. autofunction:: renorm
+.. autofunction:: repeat_interleave
 .. autofunction:: roll
 .. autofunction:: tensordot
 .. autofunction:: trace
 .. autofunction:: tril
+.. autofunction:: tril_indices
 .. autofunction:: triu
+.. autofunction:: triu_indices
 
 
 BLAS and LAPACK Operations
@@ -285,22 +320,22 @@ BLAS and LAPACK Operations
 .. autofunction:: addr
 .. autofunction:: baddbmm
 .. autofunction:: bmm
-.. autofunction:: btrifact
-.. autofunction:: btrifact_with_info
-.. autofunction:: btrisolve
-.. autofunction:: btriunpack
 .. autofunction:: chain_matmul
 .. autofunction:: cholesky
+.. autofunction:: cholesky_inverse
+.. autofunction:: cholesky_solve
 .. autofunction:: dot
 .. autofunction:: eig
 .. autofunction:: gels
 .. autofunction:: geqrf
 .. autofunction:: ger
-.. autofunction:: gesv
 .. autofunction:: inverse
 .. autofunction:: det
 .. autofunction:: logdet
 .. autofunction:: slogdet
+.. autofunction:: lu
+.. autofunction:: lu_solve
+.. autofunction:: lu_unpack
 .. autofunction:: matmul
 .. autofunction:: matrix_power
 .. autofunction:: matrix_rank
@@ -309,14 +344,12 @@ BLAS and LAPACK Operations
 .. autofunction:: orgqr
 .. autofunction:: ormqr
 .. autofunction:: pinverse
-.. autofunction:: potrf
-.. autofunction:: potri
-.. autofunction:: potrs
-.. autofunction:: pstrf
 .. autofunction:: qr
+.. autofunction:: solve
 .. autofunction:: svd
 .. autofunction:: symeig
-.. autofunction:: trtrs
+.. autofunction:: trapz
+.. autofunction:: triangular_solve
 
 Utilities
 ----------------------------------

@@ -7,6 +7,7 @@ import struct
 import sys
 import torch
 import tarfile
+import zipfile
 import tempfile
 import warnings
 from contextlib import closing, contextmanager
@@ -78,7 +79,7 @@ def validate_cuda_device(location):
         raise RuntimeError('Attempting to deserialize object on a CUDA '
                            'device but torch.cuda.is_available() is False. '
                            'If you are running on a CPU-only machine, '
-                           'please use torch.load with map_location=\'cpu\' '
+                           'please use torch.load with map_location=torch.device(\'cpu\') '
                            'to map your storages to the CPU.')
     if device >= torch.cuda.device_count():
         raise RuntimeError('Attempting to deserialize object on CUDA device '
@@ -92,7 +93,12 @@ def validate_cuda_device(location):
 def _cuda_deserialize(obj, location):
     if location.startswith('cuda'):
         device = validate_cuda_device(location)
-        return obj.cuda(device)
+        if getattr(obj, "_torch_load_uninitialized", False):
+            storage_type = getattr(torch.cuda, type(obj).__name__)
+            with torch.cuda.device(device):
+                return storage_type(obj.size())
+        else:
+            return obj.cuda(device)
 
 
 register_package(10, _cpu_tag, _cpu_deserialize)
@@ -201,11 +207,11 @@ def save(obj, f, pickle_module=pickle, pickle_protocol=DEFAULT_PROTOCOL):
         pickle_protocol: can be specified to override the default protocol
 
     .. warning::
-        If you are using Python 2, torch.save does NOT support StringIO.StringIO
+        If you are using Python 2, :func:`torch.save` does NOT support :class:`StringIO.StringIO`
         as a valid file-like object. This is because the write method should return
-        the number of bytes written; StringIO.write() does not do this.
+        the number of bytes written; :meth:`StringIO.write()` does not do this.
 
-        Please use something like io.BytesIO instead.
+        Please use something like :class:`io.BytesIO` instead.
 
     Example:
         >>> # Save to file
@@ -270,7 +276,6 @@ def _save(obj, f, pickle_module, pickle_protocol):
                     location,
                     obj.size(),
                     view_metadata)
-
         return None
 
     sys_info = dict(
@@ -300,58 +305,58 @@ def _save(obj, f, pickle_module, pickle_protocol):
 def load(f, map_location=None, pickle_module=pickle, **pickle_load_args):
     """Loads an object saved with :func:`torch.save` from a file.
 
-    :meth:`torch.load` uses Python's unpickling facilities but treats storages,
+    :func:`torch.load` uses Python's unpickling facilities but treats storages,
     which underlie tensors, specially. They are first deserialized on the
     CPU and are then moved to the device they were saved from. If this fails
     (e.g. because the run time system doesn't have certain devices), an exception
     is raised. However, storages can be dynamically remapped to an alternative
-    set of devices using the `map_location` argument.
+    set of devices using the :attr:`map_location` argument.
 
-    If `map_location` is a callable, it will be called once for each serialized
+    If :attr:`map_location` is a callable, it will be called once for each serialized
     storage with two arguments: storage and location. The storage argument
     will be the initial deserialization of the storage, residing on the CPU.
     Each serialized storage has a location tag associated with it which
     identifies the device it was saved from, and this tag is the second
-    argument passed to map_location. The builtin location tags are `'cpu'` for
-    CPU tensors and `'cuda:device_id'` (e.g. `'cuda:2'`) for CUDA tensors.
-    `map_location` should return either None or a storage. If `map_location` returns
-    a storage, it will be used as the final deserialized object, already moved to
-    the right device. Otherwise, :math:`torch.load` will fall back to the default
-    behavior, as if `map_location` wasn't specified.
+    argument passed to :attr:`map_location`. The builtin location tags are ``'cpu'``
+    for CPU tensors and ``'cuda:device_id'`` (e.g. ``'cuda:2'``) for CUDA tensors.
+    :attr:`map_location` should return either ``None`` or a storage. If
+    :attr:`map_location` returns a storage, it will be used as the final deserialized
+    object, already moved to the right device. Otherwise, :func:`torch.load` will
+    fall back to the default behavior, as if :attr:`map_location` wasn't specified.
 
-    If `map_location` is a string, it should be a device tag, where all tensors
-    should be loaded.
+    If :attr:`map_location` is a :class:`torch.device` object or a string contraining
+    a device tag, it indicates the location where all tensors should be loaded.
 
-    Otherwise, if `map_location` is a dict, it will be used to remap location tags
+    Otherwise, if :attr:`map_location` is a dict, it will be used to remap location tags
     appearing in the file (keys), to ones that specify where to put the
     storages (values).
 
     User extensions can register their own location tags and tagging and
-    deserialization methods using `register_package`.
+    deserialization methods using :func:`torch.serialization.register_package`.
 
     Args:
-        f: a file-like object (has to implement read, readline, tell, and seek),
+        f: a file-like object (has to implement :meth:`read`, :meth`readline`, :meth`tell`, and :meth`seek`),
             or a string containing a file name
-        map_location: a function, torch.device, string or a dict specifying how to remap storage
+        map_location: a function, :class:`torch.device`, string or a dict specifying how to remap storage
             locations
         pickle_module: module used for unpickling metadata and objects (has to
-            match the pickle_module used to serialize file)
+            match the :attr:`pickle_module` used to serialize file)
         pickle_load_args: optional keyword arguments passed over to
-            ``pickle_module.load`` and ``pickle_module.Unpickler``, e.g.,
-            ``encoding=...``.
+            :func:`pickle_module.load` and :func:`pickle_module.Unpickler`, e.g.,
+            :attr:`encoding=...`.
 
     .. note::
-        When you call :meth:`torch.load()` on a file which contains GPU tensors, those tensors
-        will be loaded to GPU by default. You can call `torch.load(.., map_location='cpu')`
+        When you call :func:`torch.load()` on a file which contains GPU tensors, those tensors
+        will be loaded to GPU by default. You can call ``torch.load(.., map_location='cpu')``
         and then :meth:`load_state_dict` to avoid GPU RAM surge when loading a model checkpoint.
 
     .. note::
         In Python 3, when loading files saved by Python 2, you may encounter
         ``UnicodeDecodeError: 'ascii' codec can't decode byte 0x...``. This is
         caused by the difference of handling in byte strings in Python2 and
-        Python 3. You may use extra ``encoding`` keyword argument to specify how
-        these objects should be loaded, e.g., ``encoding='latin1'`` decodes them
-        to strings using ``latin1`` encoding, and ``encoding='bytes'`` keeps them
+        Python 3. You may use extra :attr:`encoding` keyword argument to specify how
+        these objects should be loaded, e.g., :attr:`encoding='latin1'` decodes them
+        to strings using ``latin1`` encoding, and :attr:`encoding='bytes'` keeps them
         as byte arrays which can be decoded later with ``byte_array.decode(...)``.
 
     Example:
@@ -365,16 +370,18 @@ def load(f, map_location=None, pickle_module=pickle, **pickle_load_args):
         # Map tensors from GPU 1 to GPU 0
         >>> torch.load('tensors.pt', map_location={'cuda:1':'cuda:0'})
         # Load tensor from io.BytesIO object
-        >>> with open('tensor.pt') as f:
+        >>> with open('tensor.pt', 'rb') as f:
                 buffer = io.BytesIO(f.read())
         >>> torch.load(buffer)
     """
     new_fd = False
     if isinstance(f, str) or \
-            (sys.version_info[0] == 2 and isinstance(f, unicode)) or \
-            (sys.version_info[0] == 3 and isinstance(f, pathlib.Path)):
+            (sys.version_info[0] == 2 and isinstance(f, unicode)):
         new_fd = True
         f = open(f, 'rb')
+    elif (sys.version_info[0] == 3 and isinstance(f, pathlib.Path)):
+        new_fd = True
+        f = f.open('rb')
     try:
         return _load(f, map_location, pickle_module, **pickle_load_args)
     finally:
@@ -524,8 +531,9 @@ def _load(f, map_location, pickle_module, **pickle_load_args):
             data_type, root_key, location, size, view_metadata = data
             location = maybe_decode_ascii(location)
             if root_key not in deserialized_objects:
-                deserialized_objects[root_key] = restore_location(
-                    data_type(size), location)
+                obj = data_type(size)
+                obj._torch_load_uninitialized = True
+                deserialized_objects[root_key] = restore_location(obj, location)
             storage = deserialized_objects[root_key]
             if view_metadata is not None:
                 view_key, offset, view_size = view_metadata
@@ -546,6 +554,9 @@ def _load(f, map_location, pickle_module, **pickle_load_args):
         try:
             return legacy_load(f)
         except tarfile.TarError:
+            if zipfile.is_zipfile(f):
+                # .zip is used for torch.jit.save and will throw an un-pickling error here
+                raise RuntimeError("{} is a zip archive (did you mean to use torch.jit.load()?)".format(f.name))
             # if not a tarfile, reset file offset and proceed
             f.seek(0)
 
@@ -567,6 +578,7 @@ def _load(f, map_location, pickle_module, **pickle_load_args):
     for key in deserialized_storage_keys:
         assert key in deserialized_objects
         deserialized_objects[key]._set_from_file(f, offset, f_should_read_directly)
-        offset = None
+        if offset is not None:
+            offset = f.tell()
 
     return result

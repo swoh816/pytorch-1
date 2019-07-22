@@ -95,6 +95,10 @@ static inline __device__ void atomicAdd(int64_t *address, int64_t val) {
   AtomicAddIntegerImpl<int64_t, sizeof(int64_t)>()(address, val);
 }
 
+static inline __device__ void atomicAdd(bool *address, bool val) {
+  *address = address && val;
+}
+
 static inline  __device__ void atomicAdd(at::Half *address, at::Half val) {
   #if ((CUDA_VERSION < 10000) || (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)))
     unsigned int * address_as_ui =
@@ -133,7 +137,18 @@ static inline  __device__  void atomicAdd(double *address, double val) {
 } while (assumed != old);
 }
 #elif !defined(__CUDA_ARCH__) && (CUDA_VERSION < 8000) || defined(__HIP_PLATFORM_HCC__)
-#if defined(__HIP_PLATFORM_HCC__) && __hcc_workweek__ < 18312
+
+/* Note [hip-clang differences to hcc]
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * The upcoming hip-clang compiler for ROCm differs from hcc in a few details.
+ * It exports the __HIP__ macro, we can hence differentiate between hcc and
+ * hip-clang. In the below, hcc only received support for atomicAdd with double
+ * typing after work week 18312. hip-clang had support from the first version.
+ * In general, the code-visible differences between hip-clang and hcc will be
+ * minimal.
+ */
+
+#if defined(__HIP_PLATFORM_HCC__) && __hcc_workweek__ < 18312 && !__HIP__
   // This needs to be defined for the host side pass
   static inline  __device__  void atomicAdd(double *address, double val) { }
 #endif
